@@ -4,8 +4,7 @@ require 'time'
 require 'net/http'
 require 'uri'
 require 'thread'
-
-Thread.abort_on_exception = true
+require 'timeout'
 
 module Lpxc
   #Require that the logplex url be set as an env var.
@@ -37,9 +36,13 @@ module Lpxc
     Thread.new {outlet}
     Thread.new do
       loop do
-        flush if @buf.size == @buf.max
-        flush if (Time.now.to_f - @last_flush.to_f) > 0.5
-        sleep(0.1)
+        begin
+          flush if @buf.size == @buf.max
+          flush if (Time.now.to_f - @last_flush.to_f) > 0.5
+          sleep(0.1)
+        rescue => e
+          $stderr.puts("at=start-error error=#{e.message}")
+        end
       end
     end
   end
@@ -86,14 +89,22 @@ module Lpxc
   #We use a keep-alive connection to send data to LOGPLEX_URL.
   #Each request will contain one or more log messages.
   def self.outlet
-    http = Net::HTTP.new(LOGPLEX_URL.host, LOGPLEX_URL.port)
-    http.use_ssl = true
-    http.start do |http|
-      loop do
-        req = @reqs.deq
-        req.add_field('Content-Type', 'application/logplex-1')
-        resp = http.request(req)
-        $stdout.puts("at=request-sent status=#{resp.code}")
+    loop do
+      begin
+        Timeout::timeout(60) do
+          http = Net::HTTP.new(LOGPLEX_URL.host, LOGPLEX_URL.port)
+          http.use_ssl = true
+          http.start do |http|
+            loop do
+              req = @reqs.deq
+              req.add_field('Content-Type', 'application/logplex-1')
+              resp = http.request(req)
+              $stdout.puts("at=request-sent status=#{resp.code}")
+            end
+          end
+        end
+      rescue => e
+        $stderr.puts("at=request-error error=#{e.message}")
       end
     end
   end

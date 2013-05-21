@@ -9,3 +9,11 @@ require 'lpxc'
 Lpxc.Start
 Lpxc.puts(logplex_token, "hello world")
 ```
+
+## Test
+
+Grab a logplex token from an Add-on provision request and pass it to test.rb
+
+```ruby
+$ ruby test.rb t.abc123
+```
