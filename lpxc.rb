@@ -8,18 +8,29 @@ require 'thread'
 Thread.abort_on_exception = true
 
 module Lpxc
+  #Require that the logplex url be set as an env var.
+  #In most cases, the value should be: https://east.logplex.io/logs
   LOGPLEX_URL = URI(ENV["LOGPLEX_URL"])
+  #Not realy used by logplex.
   @hostname = "myhost"
+  #This will show up in the Heroku logs tail command as: app[lpxc]
   @procid = "lpxc"
+  #The msgid is not used by logplex.
   @msgid = "- -"
   @mut = Mutex.new
   @buf = SizedQueue.new(300)
   @reqs = SizedQueue.new(300)
 
+  #The interface to publish logs into the stream.
+  #This function will set the log message to the current time in UTC.
   def self.puts(tok, msg)
     @buf.enq({ts: Time.now.utc.to_datetime.rfc3339.to_s, token: tok, msg: msg})
   end
 
+  #This method must be called in order for the messages to be sent to Logplex.
+  #This method also spawns a thread that allows the messages to be batched.
+  #Messages are flushed from memory every 500ms or when we have 300 messages,
+  #whichever comes first.
   def self.start
     Thread.new {outlet}
     loop do
@@ -28,7 +39,13 @@ module Lpxc
       sleep(0.1)
     end
   end
+
+  private
 	
+  #Take a lock to read all of the buffered messages.
+  #Once we have read the messages, we make 1 http request for the batch.
+  #We pass the request off into the request queue so that the request
+  #can be sent to LOGPLEX_URL.
   def self.flush
     payloads = []
     @mut.synchronize do
@@ -49,6 +66,8 @@ module Lpxc
     @last_flush = Time.now
   end
 
+  #Format the user message into rfc5425 format.
+  #This method also prepends the length to the message.
   def self.fmt(data)
     pkt = "<190>1 "
     pkt += "#{data[:ts]} "
@@ -60,6 +79,8 @@ module Lpxc
     "#{pkt.size} #{pkt}"
   end
 
+  #We use a keep-alive connection to send data to LOGPLEX_URL.
+  #Each request will contain one or more log messages.
   def self.outlet
     http = Net::HTTP.new(LOGPLEX_URL.host, LOGPLEX_URL.port)
     http.use_ssl = true
