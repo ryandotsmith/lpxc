@@ -33,10 +33,12 @@ module Lpxc
   #whichever comes first.
   def self.start
     Thread.new {outlet}
-    loop do
-      flush if @buf.size == @buf.max
-      flush if (Time.now.to_f - @last_flush.to_f) > 0.5
-      sleep(0.1)
+    Thread.new do
+      loop do
+        flush if @buf.size == @buf.max
+        flush if (Time.now.to_f - @last_flush.to_f) > 0.5
+        sleep(0.1)
+      end
     end
   end
 
@@ -93,10 +95,4 @@ module Lpxc
       end
     end
   end
-end
-
-Thread.new {Lpxc.start}
-loop do
-  Lpxc.puts("t.9821e525-3393-4576-9330-06a2ed3c121d", "time=#{Time.now.to_i}")
-  sleep(1)
 end
