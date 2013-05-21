@@ -20,6 +20,8 @@ module Lpxc
   @mut = Mutex.new
   @buf = SizedQueue.new(300)
   @reqs = SizedQueue.new(300)
+  #Initialize the last_flush to the 0 value for time.
+  @last_flush = Time.at(0)
 
   #The interface to publish logs into the stream.
   #This function will set the log message to the current time in UTC.
