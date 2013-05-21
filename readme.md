@@ -14,6 +14,6 @@ Lpxc.puts(logplex_token, "hello world")
 
 Grab a logplex token from an Add-on provision request and pass it to test.rb
 
-```ruby
+```bash
 $ ruby test.rb t.abc123
 ```
