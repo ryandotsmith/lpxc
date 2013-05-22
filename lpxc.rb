@@ -6,6 +6,7 @@ require 'uri'
 require 'thread'
 require 'timeout'
 
+
 module Lpxc
   #Require that the logplex url be set as an env var.
   #In most cases, the value should be: https://east.logplex.io/logs
@@ -93,12 +94,13 @@ module Lpxc
       begin
         Timeout::timeout(60) do
           http = Net::HTTP.new(LOGPLEX_URL.host, LOGPLEX_URL.port)
+          http.set_debug_output($stdout) if ENV['DEBUG']
           http.use_ssl = true
-          http.start do |http|
+          http.start do |conn|
             loop do
               req = @reqs.deq
               req.add_field('Content-Type', 'application/logplex-1')
-              resp = http.request(req)
+              resp = conn.request(req)
               $stdout.puts("at=request-sent status=#{resp.code}")
             end
           end
