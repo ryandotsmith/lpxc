@@ -72,6 +72,7 @@ module Lpxc
     req.body = body
     @reqs.enq(req)
     @last_flush = Time.now
+    $stdout.puts("at=flush size=#{payloads.length}")
   end
 
   #Format the user message into rfc5425 format.

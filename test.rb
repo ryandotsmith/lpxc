@@ -3,5 +3,5 @@ require 'lpxc'
 Lpxc.start
 loop do
   Lpxc.puts(ARGV[0], 'hello world')
-  sleep(0.5)
+  sleep(0.1)
 end
