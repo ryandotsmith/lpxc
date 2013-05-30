@@ -1,6 +1,6 @@
 #lpxc
 
-A reference implementation of a ruby library that sends log data to Heroku's Logplex. Not designed to be production software.
+A reference implementation of a ruby library that sends log data to Heroku's Logplex. Lpxc is not designed to be production software.
 
 ## Usage
 
