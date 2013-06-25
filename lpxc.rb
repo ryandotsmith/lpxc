@@ -13,8 +13,6 @@ module Lpxc
   LOGPLEX_URL = URI(ENV["LOGPLEX_URL"])
   #Not realy used by logplex.
   @hostname = "myhost"
-  #This will show up in the Heroku logs tail command as: app[lpxc]
-  @procid = "lpxc"
   #The msgid is not used by logplex.
   @msgid = "- -"
   @mut = Mutex.new
@@ -26,14 +24,18 @@ module Lpxc
   #The interface to publish logs into the stream.
   #This function will set the log message to the current time in UTC.
   def self.puts(tok, msg)
-    @buf.enq({ts: Time.now.utc.to_datetime.rfc3339.to_s, token: tok, msg: msg})
+    @buf.enq({ :ts => Time.now.utc.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
+               :token => tok, :msg => msg })
+  end
   end
 
   #This method must be called in order for the messages to be sent to Logplex.
   #This method also spawns a thread that allows the messages to be batched.
   #Messages are flushed from memory every 500ms or when we have 300 messages,
   #whichever comes first.
-  def self.start
+  def self.start(procid="lpxc")
+    #This will show up in the Heroku logs tail command as: app[lpxc]
+    @procid = procid
     Thread.new {outlet}
     Thread.new do
       loop do
@@ -97,6 +99,9 @@ module Lpxc
           http = Net::HTTP.new(LOGPLEX_URL.host, LOGPLEX_URL.port)
           http.set_debug_output($stdout) if ENV['DEBUG']
           http.use_ssl = true
+          http.ca_path = "/etc/ssl/certs"
+          http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+          http.verify_depth = 5
           http.start do |conn|
             loop do
               req = @reqs.deq
