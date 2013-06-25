@@ -26,7 +26,9 @@ module Lpxc
   #The interface to publish logs into the stream.
   #This function will set the log message to the current time in UTC.
   def self.puts(tok, msg)
-    @buf.enq({ts: Time.now.utc.to_datetime.rfc3339.to_s, token: tok, msg: msg})
+    @buf.enq({ :ts => Time.now.utc.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
+               :token => tok, :msg => msg })
+  end
   end
 
   #This method must be called in order for the messages to be sent to Logplex.
