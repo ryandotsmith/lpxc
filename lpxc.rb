@@ -13,8 +13,6 @@ module Lpxc
   LOGPLEX_URL = URI(ENV["LOGPLEX_URL"])
   #Not realy used by logplex.
   @hostname = "myhost"
-  #This will show up in the Heroku logs tail command as: app[lpxc]
-  @procid = "lpxc"
   #The msgid is not used by logplex.
   @msgid = "- -"
   @mut = Mutex.new
@@ -35,7 +33,9 @@ module Lpxc
   #This method also spawns a thread that allows the messages to be batched.
   #Messages are flushed from memory every 500ms or when we have 300 messages,
   #whichever comes first.
-  def self.start
+  def self.start(procid="lpxc")
+    #This will show up in the Heroku logs tail command as: app[lpxc]
+    @procid = procid
     Thread.new {outlet}
     Thread.new do
       loop do
