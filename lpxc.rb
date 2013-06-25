@@ -99,6 +99,9 @@ module Lpxc
           http = Net::HTTP.new(LOGPLEX_URL.host, LOGPLEX_URL.port)
           http.set_debug_output($stdout) if ENV['DEBUG']
           http.use_ssl = true
+          http.ca_path = "/etc/ssl/certs"
+          http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+          http.verify_depth = 5
           http.start do |conn|
             loop do
               req = @reqs.deq
