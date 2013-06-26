@@ -6,39 +6,55 @@ require 'uri'
 require 'thread'
 require 'timeout'
 
+class Lpxc
 
-module Lpxc
-  #Require that the logplex url be set as an env var.
-  #In most cases, the value should be: https://east.logplex.io/logs
-  LOGPLEX_URL = URI(ENV["LOGPLEX_URL"])
-  #Not realy used by logplex.
-  @hostname = "myhost"
-  #This will show up in the Heroku logs tail command as: app[lpxc]
-  @procid = "lpxc"
-  #The msgid is not used by logplex.
-  @msgid = "- -"
-  @mut = Mutex.new
-  @buf = SizedQueue.new(300)
-  @reqs = SizedQueue.new(300)
-  #Initialize the last_flush to the 0 value for time.
-  @last_flush = Time.at(0)
+  attr_reader :reqs, :hash
+  def initialize(opts={})
+    @hash = opts[:hash] || Hash.new
+    @reqs = opts[:request_queue] || SizedQueue.new(300)
+    @hash_lock = Mutex.new
+
+    #Ignored by logplex
+    @structured_data = opts[:structured_data] || "-"
+
+    #Ignored by logplex
+    @msgid = opts[:msgid] || "-"
+
+    #This will show up in the Heroku logs tail command as: app[lpxc]
+    @procid = opts[:procid] || "lpxc"
+
+    #Ignored by logplex.
+    @hostname = opts[:hostname] || "myhost"
+
+    #Determines how long to keep the tcp connection to logplex alive.
+    @conn_timeout = opts[:conn_timeout] || 60
+
+    #In most cases, the value should be: https://east.logplex.io/logs
+    err = "Must set logplex url."
+    @logplex_url = URI(opts[:logplex_url] || ENV["LOGPLEX_URL"] || raise(err))
+  end
 
   #The interface to publish logs into the stream.
   #This function will set the log message to the current time in UTC.
-  def self.puts(tok, msg)
-    @buf.enq({ts: Time.now.utc.to_datetime.rfc3339.to_s, token: tok, msg: msg})
+  def puts(msg, tok=nil)
+    @hash_lock.synchronize do
+      q = @hash[tok] ||= SizedQueue.new(300)
+      q.enq({t: Time.now.utc, token: tok, msg: msg})
+    end
   end
 
   #This method must be called in order for the messages to be sent to Logplex.
   #This method also spawns a thread that allows the messages to be batched.
   #Messages are flushed from memory every 500ms or when we have 300 messages,
   #whichever comes first.
-  def self.start
+  def start
     Thread.new {outlet}
     Thread.new do
       loop do
         begin
-          flush if @buf.size == @buf.max
+          #If any of the queues are full, we will flush the entire hash.
+          flush if any_full?
+          #If it has been 500ms since our last flush, we will flush.
           flush if (Time.now.to_f - @last_flush.to_f) > 0.5
           sleep(0.1)
         rescue => e
@@ -48,57 +64,71 @@ module Lpxc
     end
   end
 
-  private
+  #private
+  
+  def any_full?
+    @hash_lock.synchronize do
+      @hash.any? {|k,v| v.size == v.max}
+    end
+  end
 	
   #Take a lock to read all of the buffered messages.
   #Once we have read the messages, we make 1 http request for the batch.
   #We pass the request off into the request queue so that the request
   #can be sent to LOGPLEX_URL.
-  def self.flush
-    payloads = []
-    @mut.synchronize do
-      @buf.size.times do
-        payloads << @buf.deq
+  def flush
+    @hash_lock.synchronize do
+      @hash.each do |tok, msgs|
+        #Copy the messages from the queue into the payload array.
+        payloads = []
+        msgs.size.times {payloads << msgs.deq}
+        return if payloads.nil? || payloads.empty?
+
+        #Use the payloads array to build a string that will be 
+        #used as the http body for the logplex request.
+        body = ""
+        payloads.flatten.each do |payload|
+          body += "#{fmt(payload)}"
+        end    
+
+        #Build a new HTTP request and place it into the queue
+        #to be processed by the HTTP connection.
+        req = Net::HTTP::Post.new(@logplex_url.path)
+        req.basic_auth("token", tok)
+        req.body = body
+        @reqs.enq(req)
+        @hash.delete(tok)
       end
+      @last_flush = Time.now
     end
-    return if payloads.nil? || payloads.empty?
-    body, tok = "", ""
-    payloads.flatten.each do |payload|
-      body += "#{fmt(payload) }"
-      tok = payload[:token]
-    end    
-    req = Net::HTTP::Post.new(LOGPLEX_URL.path)
-    req.basic_auth("token", tok)
-    req.body = body
-    @reqs.enq(req)
-    @last_flush = Time.now
-    $stdout.puts("at=flush size=#{payloads.length}")
   end
 
-  #Format the user message into rfc5425 format.
+  #Format the user message into RFC5425 format.
   #This method also prepends the length to the message.
-  def self.fmt(data)
+  def fmt(data)
     pkt = "<190>1 "
-    pkt += "#{data[:ts]} "
+    pkt += "#{data[:t].to_datetime.rfc3339.to_s} "
     pkt += "#{@hostname} "
     pkt += "#{data[:token]} "
     pkt += "#{@procid} "
     pkt += "#{@msgid} "
+    pkt += "#{@structured_data} "
     pkt += data[:msg]
     "#{pkt.size} #{pkt}"
   end
 
   #We use a keep-alive connection to send data to LOGPLEX_URL.
   #Each request will contain one or more log messages.
-  def self.outlet
+  def outlet
     loop do
       begin
-        Timeout::timeout(60) do
-          http = Net::HTTP.new(LOGPLEX_URL.host, LOGPLEX_URL.port)
+        Timeout::timeout(@conn_timeout) do
+          http = Net::HTTP.new(@logplex_url.host, @logplex_url.port)
           http.set_debug_output($stdout) if ENV['DEBUG']
           http.use_ssl = true
           http.start do |conn|
             loop do
+              #We will block here waiting for a request.
               req = @reqs.deq
               req.add_field('Content-Type', 'application/logplex-1')
               resp = conn.request(req)
