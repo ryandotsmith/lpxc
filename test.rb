@@ -1,8 +1,32 @@
+require 'webrick'
 require './lpxc.rb'
 require 'minitest/autorun'
 
-class LpxcTest < MiniTest::Unit::TestCase
-  ENV['LOGPLEX_URL'] = 'https://east.logplex.io/logs' 
+class LpxcTest < Minitest::Test
+  ENV['LOGPLEX_URL'] = 'http://localhost:5000/logs'
+
+  def serve_http(result)
+    server = WEBrick::HTTPServer.new(
+      Logger: WEBrick::Log.new("/dev/null"),
+      AccessLog: [],
+      :Port => 5000)
+    server.mount_proc '/logs' do |req, res|
+      result << req.body
+    end
+    server.start
+  end
+
+  def test_integration
+    result = []
+    Thread.new {serve_http(result)}
+    c = Lpxc.new(request_queue: SizedQueue.new(1))
+    c.start
+    c.puts('hello world', 't.123')
+    sleep(c.flush_interval * 2)
+
+    expected = /66 <190>1 [0-9T:\+\-\.]+ myhost t.123 lpxc - - hello world/
+    assert result[0] =~ expected
+  end
 
   def test_fmt
     c = Lpxc.new

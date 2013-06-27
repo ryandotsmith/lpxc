@@ -8,7 +8,7 @@ require 'timeout'
 
 class Lpxc
 
-  attr_reader :reqs, :hash
+  attr_reader :reqs, :hash, :flush_interval
   def initialize(opts={})
     @hash = opts[:hash] || Hash.new
     @reqs = opts[:request_queue] || SizedQueue.new(300)
@@ -28,6 +28,9 @@ class Lpxc
 
     #Determines how long to keep the tcp connection to logplex alive.
     @conn_timeout = opts[:conn_timeout] || 60
+
+    #Number of factional seconds to batch messages in memory.
+    @flush_interval = opts[:flush_interval] || 0.5
 
     #In most cases, the value should be: https://east.logplex.io/logs
     err = "Must set logplex url."
@@ -55,7 +58,7 @@ class Lpxc
           #If any of the queues are full, we will flush the entire hash.
           flush if any_full?
           #If it has been 500ms since our last flush, we will flush.
-          flush if (Time.now.to_f - @last_flush.to_f) > 0.5
+          flush if (Time.now.to_f - @last_flush.to_f) > @flush_interval
           sleep(0.1)
         rescue => e
           $stderr.puts("at=start-error error=#{e.message}")
@@ -125,14 +128,14 @@ class Lpxc
         Timeout::timeout(@conn_timeout) do
           http = Net::HTTP.new(@logplex_url.host, @logplex_url.port)
           http.set_debug_output($stdout) if ENV['DEBUG']
-          http.use_ssl = true
+          http.use_ssl = true if @logplex_url.scheme == 'https'
           http.start do |conn|
             loop do
               #We will block here waiting for a request.
               req = @reqs.deq
               req.add_field('Content-Type', 'application/logplex-1')
               resp = conn.request(req)
-              $stdout.puts("at=request-sent status=#{resp.code}")
+              $stdout.puts("at=req-sent status=#{resp.code}") if ENV['DEBUG']
             end
           end
         end
