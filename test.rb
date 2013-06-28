@@ -1,6 +1,9 @@
 require 'webrick'
 require './lpxc.rb'
 
+LOGPLEX_URL = URI('http://localhost:5000/logs')
+ENV['LOGPLEX_URL'] = LOGPLEX_URL.to_s
+
 if RUBY_VERSION[0].to_i >= 2
   require 'minitest/autorun'
   LpxcTestBase = Minitest::Test
@@ -14,8 +17,8 @@ module TestServer
     @server = WEBrick::HTTPServer.new(
       :Logger => WEBrick::Log.new("/dev/null"),
       :AccessLog => [],
-      :Port => 5000)
-    @server.mount_proc('/logs') {|req, res| result << req.body}
+      :Port => LOGPLEX_URL.port)
+    @server.mount_proc(LOGPLEX_URL.path) {|req, res| result << req.body}
     @server_thread = Thread.new {@server.start}
   end
 
@@ -25,7 +28,6 @@ module TestServer
 end
 
 class LpxcTest < LpxcTestBase
-  ENV['LOGPLEX_URL'] = 'http://localhost:5000/logs'
 
   def test_integration
     result = []
