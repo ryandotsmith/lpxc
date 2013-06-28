@@ -110,7 +110,7 @@ class Lpxc
   #This method also prepends the length to the message.
   def fmt(data)
     pkt = "<190>1 "
-    pkt += "#{data[:t].to_datetime.rfc3339.to_s} "
+    pkt += "#{data[:t].strftime("%Y-%m-%dT%H:%M:%S+00:00")} "
     pkt += "#{@hostname} "
     pkt += "#{data[:token]} "
     pkt += "#{@procid} "

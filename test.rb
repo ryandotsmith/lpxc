@@ -30,7 +30,7 @@ class LpxcTest < Minitest::Test
 
   def test_fmt
     c = Lpxc.new
-    t = Time.now
+    t = Time.now.utc
     actual = c.fmt(t: t, token: 't.123', msg: 'hello world')
     ts = t.to_datetime.rfc3339.to_s
     expected =  "66 <190>1 #{ts} myhost t.123 lpxc - - hello world"
