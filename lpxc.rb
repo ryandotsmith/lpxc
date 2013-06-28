@@ -42,7 +42,7 @@ class Lpxc
   def puts(msg, tok=nil)
     @hash_lock.synchronize do
       q = @hash[tok] ||= SizedQueue.new(300)
-      q.enq({t: Time.now.utc, token: tok, msg: msg})
+      q.enq({:t => Time.now.utc, :token => tok, :msg => msg})
     end
   end
 
