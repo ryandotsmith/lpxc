@@ -37,6 +37,8 @@ class Lpxc
     #Number of seconds to wait for a single request to be sent to logplex.
     @conn_timeout = opts[:conn_timeout] || 2
 
+    #Keep track of the number of requests that the outlet
+    #is processing. This value is used by the wait function.
     @req_in_flight = 0
 
     #Number of log messages to batch before sending an HTTP request.
