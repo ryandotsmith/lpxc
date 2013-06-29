@@ -8,7 +8,7 @@ require 'timeout'
 
 class Lpxc
 
-  attr_reader :reqs, :hash, :flush_interval
+  attr_reader :reqs, :hash, :flush_interval, :batch_size
   def initialize(opts={})
     @hash = opts[:hash] || Hash.new
     @reqs = opts[:request_queue] || SizedQueue.new(300)
@@ -29,6 +29,9 @@ class Lpxc
     #Determines how long to keep the tcp connection to logplex alive.
     @conn_timeout = opts[:conn_timeout] || 60
 
+    #Number of log messages to batch before sending to LOGPLEX_URL
+    @batch_size = opts[:batch_size] || 300
+
     #Number of factional seconds to batch messages in memory.
     @flush_interval = opts[:flush_interval] || 0.5
 
@@ -41,7 +44,7 @@ class Lpxc
   #This function will set the log message to the current time in UTC.
   def puts(msg, tok=nil)
     @hash_lock.synchronize do
-      q = @hash[tok] ||= SizedQueue.new(300)
+      q = @hash[tok] ||= SizedQueue.new(@batch_size)
       q.enq({:t => Time.now.utc, :token => tok, :msg => msg})
     end
   end
@@ -67,7 +70,7 @@ class Lpxc
     end
   end
 
-  #private
+  private
   
   def any_full?
     @hash_lock.synchronize do
