@@ -13,8 +13,10 @@ else
 end
 
 module TestServer
+  def self.results; @results; end
+  def self.stop; @server.shutdown; end
   def self.start
-    clear_results
+    @results = []
     @server = WEBrick::HTTPServer.new(
       :Logger => WEBrick::Log.new("/dev/null"),
       :AccessLog => [],
@@ -22,13 +24,6 @@ module TestServer
     @server.mount_proc(LOGPLEX_URL.path) {|req, res| @results << req.body}
     @server_thread = Thread.new {@server.start}
   end
-
-  def self.stop
-    @server.shutdown
-  end
-
-  def self.clear_results; @results = []; end
-  def self.results; @results; end
 end
 
 class LpxcTest < LpxcTestBase
@@ -42,11 +37,9 @@ class LpxcTest < LpxcTestBase
   end
 
   def test_integration
-    c = Lpxc.new(:request_queue => SizedQueue.new(1))
-    c.start
+    c = Lpxc.new(:flush_interval=> 0.2, :request_queue => SizedQueue.new(1))
     c.puts('hello world', 't.123')
-    sleep(c.flush_interval * 2)
-
+    c.wait
     expected = /66 <190>1 [0-9T:\+\-\.]+ myhost t.123 lpxc - - hello world/
     assert TestServer.results[0] =~ expected
   end
@@ -57,13 +50,10 @@ class LpxcTest < LpxcTestBase
       :flush_interval => 10,
       :batch_size => 100
     )
-
-    c.start
     c.batch_size.times do
       c.puts('hello world', 't.123')
     end
-
-    sleep(0.5) #allow some time for lpxc to make the http request.
+    c.wait
     assert_equal(1, TestServer.results.length)
     assert_equal(c.batch_size, TestServer.results[0].scan(/hello\sworld/).count)
   end
@@ -81,7 +71,8 @@ class LpxcTest < LpxcTestBase
     c = Lpxc.new(:request_queue => SizedQueue.new(1))
     c.puts('hello world', 't.123')
     assert_equal(1, c.hash.keys.length)
-    c.send(:flush)
+    c.flush
+    c.wait
     assert_equal(0, c.hash.keys.length)
   end
 
@@ -90,8 +81,9 @@ class LpxcTest < LpxcTestBase
     c = Lpxc.new(:request_queue => reqs)
     c.puts('hello world', 't.123')
     c.puts('hello world', 't.123')
-    c.send(:flush)
-    assert_equal(1, c.reqs.size)
+    c.flush
+    c.wait
+    assert_equal(1, TestServer.results.length)
   end
 
   def test_request_queue_with_many_tokens
@@ -99,8 +91,8 @@ class LpxcTest < LpxcTestBase
     c = Lpxc.new(:request_queue => reqs)
     c.puts('hello world', 't.123')
     c.puts('hello world', 't.124')
-    c.send(:flush)
-    assert_equal(2, c.reqs.size)
+    c.flush
+    c.wait
+    assert_equal(2, TestServer.results.length)
   end
-
 end

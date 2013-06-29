@@ -1,5 +1,3 @@
-$stdout.sync = true
-
 require 'time'
 require 'net/http'
 require 'uri'
@@ -8,11 +6,15 @@ require 'timeout'
 
 class Lpxc
 
-  attr_reader :reqs, :hash, :flush_interval, :batch_size
+  attr_reader :request_queue, :hash, :flush_interval, :batch_size
   def initialize(opts={})
-    @hash = opts[:hash] || Hash.new
-    @reqs = opts[:request_queue] || SizedQueue.new(300)
     @hash_lock = Mutex.new
+    @hash = opts[:hash] || Hash.new
+    @request_queue = opts[:request_queue] || SizedQueue.new(1)
+
+    #You can specify a token that will be used for any call to Lpxc#puts
+    #that doesn't include a token.
+    @default_token = opts[:default_token]
 
     #Ignored by logplex
     @structured_data = opts[:structured_data] || "-"
@@ -26,47 +28,47 @@ class Lpxc
     #Ignored by logplex.
     @hostname = opts[:hostname] || "myhost"
 
-    #Determines how long to keep the tcp connection to logplex alive.
-    @conn_timeout = opts[:conn_timeout] || 60
+    #The HTTP client uses keep-alive connections. This
+    #parameter determines how many requests should be sent on each connection.
+    #Keeping this number small ensures that we can evenly spread
+    #requests across all the logplex nodes.
+    @max_reqs_per_conn = opts[:max_reqs_per_conn] || 1_000
 
-    #Number of log messages to batch before sending to LOGPLEX_URL
+    #Number of seconds to wait for a single request to be sent to logplex.
+    @conn_timeout = opts[:conn_timeout] || 2
+
+    @req_in_flight = 0
+
+    #Number of log messages to batch before sending an HTTP request.
     @batch_size = opts[:batch_size] || 300
 
     #Number of factional seconds to batch messages in memory.
     @flush_interval = opts[:flush_interval] || 0.5
 
+    #Initialize the last_flush to an arbitrary time.
+    @last_flush = Time.now + @flush_interval
+
     #In most cases, the value should be: https://east.logplex.io/logs
     err = "Must set logplex url."
     @logplex_url = URI(opts[:logplex_url] || ENV["LOGPLEX_URL"] || raise(err))
+
+    #Start the processing threads.
+    Thread.new {outlet}
+    Thread.new {delay_flush}
   end
 
   #The interface to publish logs into the stream.
   #This function will set the log message to the current time in UTC.
-  def puts(msg, tok=nil)
+  def puts(msg, tok=@default_token)
     @hash_lock.synchronize do
+      #Messages are grouped by their token since 1 http request
+      #to logplex must only contain log messages belonging to a single token.
       q = @hash[tok] ||= SizedQueue.new(@batch_size)
+      #This call will block if the queue is full.
+      #However this should never happen since the next command will flush
+      #the queue if we add the last item.
       q.enq({:t => Time.now.utc, :token => tok, :msg => msg})
-    end
-  end
-
-  #This method must be called in order for the messages to be sent to Logplex.
-  #This method also spawns a thread that allows the messages to be batched.
-  #Messages are flushed from memory every 500ms or when we have 300 messages,
-  #whichever comes first.
-  def start
-    Thread.new {outlet}
-    Thread.new do
-      loop do
-        begin
-          #If any of the queues are full, we will flush the entire hash.
-          flush if any_full?
-          #If it has been Xms since our last flush, we will flush.
-          flush if (Time.now.to_f - @last_flush.to_f) > @flush_interval
-          sleep(0.025)
-        rescue => e
-          $stderr.puts("at=start-error error=#{e.message}") if ENV['DEBUG']
-        end
-      end
+      flush if q.size == q.max
     end
   end
 
@@ -75,38 +77,59 @@ class Lpxc
   #We pass the request off into the request queue so that the request
   #can be sent to LOGPLEX_URL.
   def flush
-    @hash_lock.synchronize do
-      @hash.each do |tok, msgs|
-        #Copy the messages from the queue into the payload array.
-        payloads = []
-        msgs.size.times {payloads << msgs.deq}
-        return if payloads.nil? || payloads.empty?
+    @hash.each do |tok, msgs|
+      #Copy the messages from the queue into the payload array.
+      payloads = []
+      msgs.size.times {payloads << msgs.deq}
+      return if payloads.nil? || payloads.empty?
 
-        #Use the payloads array to build a string that will be 
-        #used as the http body for the logplex request.
-        body = ""
-        payloads.flatten.each do |payload|
-          body += "#{fmt(payload)}"
-        end    
-
-        #Build a new HTTP request and place it into the queue
-        #to be processed by the HTTP connection.
-        req = Net::HTTP::Post.new(@logplex_url.path)
-        req.basic_auth("token", tok)
-        req.body = body
-        @reqs.enq(req)
-        @hash.delete(tok)
+      #Use the payloads array to build a string that will be
+      #used as the http body for the logplex request.
+      body = ""
+      payloads.flatten.each do |payload|
+        body += "#{fmt(payload)}"
       end
+
+      #Build a new HTTP request and place it into the queue
+      #to be processed by the HTTP connection.
+      req = Net::HTTP::Post.new(@logplex_url.path)
+      req.basic_auth("token", tok)
+      req.add_field('Content-Type', 'application/logplex-1')
+      req.body = body
+      @request_queue.enq(req)
+      @hash.delete(tok)
       @last_flush = Time.now
     end
   end
 
+  def wait
+    sleep(0.1) until
+      @hash.length.zero? &&
+      @request_queue.empty? &&
+      @req_in_flight.zero?
+  end
+
   private
 
-  def any_full?
-    @hash_lock.synchronize do
-      @hash.any? {|k,v| v.size == v.max}
+  #This method must be called in order for the messages to be sent to Logplex.
+  #This method also spawns a thread that allows the messages to be batched.
+  #Messages are flushed from memory every 500ms or when we have 300 messages,
+  #whichever comes first.
+  def delay_flush
+    loop do
+      begin
+        if interval_ready?
+          @hash_lock.synchronize {flush}
+        end
+        sleep(0.01)
+      rescue => e
+        $stderr.puts("at=start-error error=#{e.message}") if ENV['DEBUG']
+      end
     end
+  end
+
+  def interval_ready?
+    (Time.now.to_f - @last_flush.to_f).abs >= @flush_interval
   end
 
   #Format the user message into RFC5425 format.
@@ -127,24 +150,35 @@ class Lpxc
   #Each request will contain one or more log messages.
   def outlet
     loop do
+      http = Net::HTTP.new(@logplex_url.host, @logplex_url.port)
+      http.set_debug_output($stdout) if ENV['DEBUG']
+      http.use_ssl = true if @logplex_url.scheme == 'https'
       begin
-        Timeout::timeout(@conn_timeout) do
-          http = Net::HTTP.new(@logplex_url.host, @logplex_url.port)
-          http.set_debug_output($stdout) if ENV['DEBUG']
-          http.use_ssl = true if @logplex_url.scheme == 'https'
-          http.start do |conn|
-            loop do
-              #We will block here waiting for a request.
-              req = @reqs.deq
-              req.add_field('Content-Type', 'application/logplex-1')
-              resp = conn.request(req)
-              $stdout.puts("at=req-sent status=#{resp.code}") if ENV['DEBUG']
+        http.start do |conn|
+          num_reqs = 0
+          while num_reqs < @max_reqs_per_conn
+            #Blocks waiting for a request.
+            req = @request_queue.deq
+            @req_in_flight += 1
+            resp = nil
+            begin
+              Timeout::timeout(@conn_timeout) {resp = conn.request(req)}
+            rescue => e
+              $stdout.puts("at=req-error msg=#{e.message}") if ENV['DEBUG']
+              next
+            ensure
+              @req_in_flight -= 1
             end
+            num_reqs += 1
+            $stdout.puts("at=req-sent status=#{resp.code}") if ENV['DEBUG']
           end
         end
       rescue => e
-        $stderr.puts("at=request-error error=#{e.message}") if ENV['DEBUG']
+        $stdout.puts("at=req-error msg=#{e.message}") if ENV['DEBUG']
+      ensure
+        http.finish
       end
     end
   end
+
 end
