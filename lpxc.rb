@@ -104,6 +104,9 @@ class Lpxc
     end
   end
 
+  #Wait until all of the data has been cleared from memory.
+  #This is useful if you don't want your program to exit before
+  #we are able to deliver log messages to logplex.
   def wait
     sleep(0.1) until
       @hash.length.zero? &&
