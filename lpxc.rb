@@ -60,24 +60,16 @@ class Lpxc
         begin
           #If any of the queues are full, we will flush the entire hash.
           flush if any_full?
-          #If it has been 500ms since our last flush, we will flush.
+          #If it has been Xms since our last flush, we will flush.
           flush if (Time.now.to_f - @last_flush.to_f) > @flush_interval
-          sleep(0.1)
+          sleep(0.025)
         rescue => e
-          $stderr.puts("at=start-error error=#{e.message}")
+          $stderr.puts("at=start-error error=#{e.message}") if ENV['DEBUG']
         end
       end
     end
   end
 
-  private
-  
-  def any_full?
-    @hash_lock.synchronize do
-      @hash.any? {|k,v| v.size == v.max}
-    end
-  end
-	
   #Take a lock to read all of the buffered messages.
   #Once we have read the messages, we make 1 http request for the batch.
   #We pass the request off into the request queue so that the request
@@ -106,6 +98,14 @@ class Lpxc
         @hash.delete(tok)
       end
       @last_flush = Time.now
+    end
+  end
+
+  private
+
+  def any_full?
+    @hash_lock.synchronize do
+      @hash.any? {|k,v| v.size == v.max}
     end
   end
 
@@ -143,7 +143,7 @@ class Lpxc
           end
         end
       rescue => e
-        $stderr.puts("at=request-error error=#{e.message}")
+        $stderr.puts("at=request-error error=#{e.message}") if ENV['DEBUG']
       end
     end
   end
