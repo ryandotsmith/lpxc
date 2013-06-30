@@ -1,19 +1,21 @@
 #lpxc
 
-A reference implementation of a ruby library that sends log data to Heroku's Logplex. Lpxc is not designed to be production software.
+Lpxc is designed to be an fast & efficient client for sending data to Heroku's logplex. It uses batching and keep-alive connection to enable high-throughput at little cost to your program.
+
+## Documentation
+
+[Rdoc](http://rdoc.info/github/ryandotsmith/lpxc)
 
 ## Usage
 
 ```ruby
 require 'lpxc'
-Lpxc.Start
-Lpxc.puts(logplex_token, "hello world")
+lpxc = Lpxc.new
+lpxc.puts("hello world", 't.123')
 ```
 
-## Test
-
-Grab a logplex token from an Add-on provision request and pass it to test.rb
+## Runing Tests
 
 ```bash
-$ ruby test.rb t.abc123
+$ ruby test.rb
 ```
