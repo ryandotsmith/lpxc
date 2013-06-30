@@ -1,6 +1,6 @@
 #lpxc
 
-Lpxc is designed to be an fast & efficient client for sending data to Heroku's logplex. It uses batching and keep-alive connection to enable high-throughput at little cost to your program.
+Lpxc is a fast & efficient client for sending log messages to Heroku's logplex. It uses batching and keep-alive connections to enable high-throughput with little overhead.
 
 ## Documentation
 
