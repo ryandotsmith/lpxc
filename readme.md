@@ -4,7 +4,7 @@ Lpxc is designed to be an fast & efficient client for sending data to Heroku's l
 
 ## Documentation
 
-[Rdoc](http://rdoc.info/github/ryandotsmith/lpxc)
+[Rdoc](https://lpxc.s3.amazonaws.com/doc/Lpxc.html)
 
 ## Usage
 
