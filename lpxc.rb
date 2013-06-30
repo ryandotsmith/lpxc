@@ -6,53 +6,43 @@ require 'timeout'
 
 class Lpxc
 
-  attr_reader :request_queue, :hash, :flush_interval, :batch_size
+  #After parsing opts and initializing defaults, the initializer
+  #will start 2 threads. One thread for sending HTTP requests and another
+  #thread for flusing log messages to the outlet thread periodically.
+  #:hash => {}:: A data structure for grouping log messages by token.
+  #:request_queue => SizedQueue.new::  Contains HTTP requests ready for outlet thread to deliver to logplex.
+  #:default_token => nil:: You can specify a token that will be used for any call to Lpxc#puts that doesn't include a token.
+  #:structured_data => '-':: Structured-data field for syslog headers. Ignored by logplex.
+  #:msgid => '-'::  Msg ID field for syslog headers. Ignored by logplex.
+  #:procid => 'lpxc':: Proc ID field for syslog headers. This will show up in the Heroku logs tail command as: app [lpxc].
+  #:hostname => 'myhost':: Hostname field for syslog headers. Ignored by logplex.
+  #:max_reqs_per_conn => 1_000:: Number of requests before we re-establish our keep-alive connection to logplex.
+  #:conn_timeout => 2:: Number of seconds before timing out a sindle request to logplex.
+  #:batch_size => 300:: Max number of log messages inside single HTTP request.
+  #:flush_interval => 0.5:: Fractional number of seconds before flushing all log messages in buffer to logplex.
+  #:logplex_url => \'https://east.logplex.io/logs':: HTTP server that will accept our log messages.
   def initialize(opts={})
     @hash_lock = Mutex.new
     @hash = opts[:hash] || Hash.new
     @request_queue = opts[:request_queue] || SizedQueue.new(1)
-
-    #You can specify a token that will be used for any call to Lpxc#puts
-    #that doesn't include a token.
     @default_token = opts[:default_token]
-
-    #Ignored by logplex
     @structured_data = opts[:structured_data] || "-"
-
-    #Ignored by logplex
     @msgid = opts[:msgid] || "-"
-
-    #This will show up in the Heroku logs tail command as: app[lpxc]
     @procid = opts[:procid] || "lpxc"
-
-    #Ignored by logplex.
     @hostname = opts[:hostname] || "myhost"
-
-    #The HTTP client uses keep-alive connections. This
-    #parameter determines how many requests should be sent on each connection.
-    #Keeping this number small ensures that we can evenly spread
-    #requests across all the logplex nodes.
     @max_reqs_per_conn = opts[:max_reqs_per_conn] || 1_000
-
-    #Number of seconds to wait for a single request to be sent to logplex.
     @conn_timeout = opts[:conn_timeout] || 2
+    @batch_size = opts[:batch_size] || 300
+    @flush_interval = opts[:flush_interval] || 0.5
+    @logplex_url = URI(opts[:logplex_url] || ENV["LOGPLEX_URL"] || 
+      raise("Must set logplex url."))
 
     #Keep track of the number of requests that the outlet
     #is processing. This value is used by the wait function.
     @req_in_flight = 0
 
-    #Number of log messages to batch before sending an HTTP request.
-    @batch_size = opts[:batch_size] || 300
-
-    #Number of factional seconds to batch messages in memory.
-    @flush_interval = opts[:flush_interval] || 0.5
-
     #Initialize the last_flush to an arbitrary time.
     @last_flush = Time.now + @flush_interval
-
-    #In most cases, the value should be: https://east.logplex.io/logs
-    err = "Must set logplex url."
-    @logplex_url = URI(opts[:logplex_url] || ENV["LOGPLEX_URL"] || raise(err))
 
     #Start the processing threads.
     Thread.new {outlet}
@@ -61,6 +51,7 @@ class Lpxc
 
   #The interface to publish logs into the stream.
   #This function will set the log message to the current time in UTC.
+  #If the buffer for this token's log messages is full, it will flush the buffer.
   def puts(msg, tok=@default_token)
     @hash_lock.synchronize do
       #Messages are grouped by their token since 1 http request
@@ -73,6 +64,18 @@ class Lpxc
       flush if q.size == q.max
     end
   end
+
+  #Wait until all of the data has been cleared from memory.
+  #This is useful if you don't want your program to exit before
+  #we are able to deliver log messages to logplex.
+  def wait
+    sleep(0.1) until
+      @hash.length.zero? &&
+      @request_queue.empty? &&
+      @req_in_flight.zero?
+  end
+
+  private
 
   #Take a lock to read all of the buffered messages.
   #Once we have read the messages, we make 1 http request for the batch.
@@ -104,17 +107,6 @@ class Lpxc
     end
   end
 
-  #Wait until all of the data has been cleared from memory.
-  #This is useful if you don't want your program to exit before
-  #we are able to deliver log messages to logplex.
-  def wait
-    sleep(0.1) until
-      @hash.length.zero? &&
-      @request_queue.empty? &&
-      @req_in_flight.zero?
-  end
-
-  private
 
   #This method must be called in order for the messages to be sent to Logplex.
   #This method also spawns a thread that allows the messages to be batched.
