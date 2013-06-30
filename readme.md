@@ -8,6 +8,10 @@ Lpxc is designed to be an fast & efficient client for sending data to Heroku's l
 
 ## Usage
 
+```bash
+$ gem install lpxc
+```
+
 ```ruby
 require 'lpxc'
 lpxc = Lpxc.new
