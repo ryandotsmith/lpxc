@@ -1,7 +1,10 @@
+require 'thread'
 require 'webrick'
 require './lpxc.rb'
 
-LOGPLEX_URL = URI('http://localhost:5000/logs') 
+Thread.abort_on_exception = true
+
+LOGPLEX_URL = URI('http://localhost:5000/logs')
 ENV['LOGPLEX_URL'] = LOGPLEX_URL.to_s
 
 if RUBY_VERSION[0].to_i >= 2
@@ -38,9 +41,14 @@ class LpxcTest < LpxcTestBase #:nodoc:
   end
 
   def test_integration
-    c = Lpxc.new(:flush_interval=> 0.2, :request_queue => SizedQueue.new(1))
+    c = Lpxc.new(
+      :flush_interval=> 0.2,
+      :batch_size => 1,
+      :max_reqs_per_conn=> 1,
+      :request_queue => SizedQueue.new(1))
     c.puts('hello world', 't.123')
     c.wait
+    sleep 1
     expected = /66 <190>1 [0-9T:\+\-\.]+ myhost t.123 lpxc - - hello world/
     assert TestServer.results[0] =~ expected
   end
@@ -50,7 +58,7 @@ class LpxcTest < LpxcTestBase #:nodoc:
     c = Lpxc.new(
       :request_queue => SizedQueue.new(1),
       :flush_interval => 10,
-      :batch_size => batch_size 
+      :batch_size => batch_size
     )
     batch_size.times do
       c.puts('hello world', 't.123')

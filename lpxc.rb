@@ -174,7 +174,7 @@ class Lpxc
       rescue => e
         $stdout.puts("at=req-error msg=#{e.message}") if ENV['DEBUG']
       ensure
-        http.finish
+        http.finish if http.started?
       end
     end
   end
