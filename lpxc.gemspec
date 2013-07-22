@@ -2,7 +2,7 @@
 Gem::Specification.new do |s|
   s.name          = "lpxc"
   s.email         = "r@32k.io"
-  s.version       = "0.0.1"
+  s.version       = "0.0.2"
   s.date          = "2013-06-29"
   s.description   = "Ruby client for sending data to Heroku's logplex."
   s.summary       = "Ruby client for logplex."

@@ -21,6 +21,7 @@ class Lpxc
   #:batch_size => 300:: Max number of log messages inside single HTTP request.
   #:flush_interval => 0.5:: Fractional number of seconds before flushing all log messages in buffer to logplex.
   #:logplex_url => \'https://east.logplex.io/logs':: HTTP server that will accept our log messages.
+  #:disable_delay_flush => nil:: Force flush only batch_size is reached.
   def initialize(opts={})
     @hash_lock = Mutex.new
     @hash = opts[:hash] || Hash.new
@@ -34,7 +35,7 @@ class Lpxc
     @conn_timeout = opts[:conn_timeout] || 2
     @batch_size = opts[:batch_size] || 300
     @flush_interval = opts[:flush_interval] || 0.5
-    @logplex_url = URI(opts[:logplex_url] || ENV["LOGPLEX_URL"] || 
+    @logplex_url = URI(opts[:logplex_url] || ENV["LOGPLEX_URL"] ||
       raise("Must set logplex url."))
 
     #Keep track of the number of requests that the outlet
@@ -46,7 +47,7 @@ class Lpxc
 
     #Start the processing threads.
     Thread.new {outlet}
-    Thread.new {delay_flush}
+    Thread.new {delay_flush} if opts[:disable_delay_flush].nil?
   end
 
   #The interface to publish logs into the stream.
