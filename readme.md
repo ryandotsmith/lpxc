@@ -4,7 +4,7 @@ Lpxc is a fast & efficient client for sending log messages to Heroku's logplex. 
 
 ## Documentation
 
-[Rdoc](https://lpxc.s3.amazonaws.com/doc/Lpxc.html)
+[Rdoc](http://rubydoc.info/github/ryandotsmith/lpxc/master/Lpxc)
 
 ## Usage
 
