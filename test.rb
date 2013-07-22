@@ -48,7 +48,6 @@ class LpxcTest < LpxcTestBase #:nodoc:
       :request_queue => SizedQueue.new(1))
     c.puts('hello world', 't.123')
     c.wait
-    sleep 1
     expected = /66 <190>1 [0-9T:\+\-\.]+ myhost t.123 lpxc - - hello world/
     assert TestServer.results[0] =~ expected
   end
