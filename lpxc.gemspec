@@ -2,13 +2,13 @@
 Gem::Specification.new do |s|
   s.name          = "lpxc"
   s.email         = "r@32k.io"
-  s.version       = "0.0.3"
+  s.version       = "0.0.4"
   s.date          = "2013-06-29"
   s.description   = "Ruby client for sending data to Heroku's logplex."
   s.summary       = "Ruby client for logplex."
   s.authors       = ["Ryan Smith (♠ ace hacker)"]
   s.homepage      = "http://github.com/ryandotsmith/lpxc"
   s.license       = "MIT"
-  s.files         = ["readme.md", "lpxc.rb"]
-  s.require_path  = "."
+  s.files         = ["./lib/lpxc.rb"]
+  s.require_path  = "lib"
 end

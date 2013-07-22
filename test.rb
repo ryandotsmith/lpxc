@@ -1,6 +1,6 @@
 require 'thread'
 require 'webrick'
-require './lpxc.rb'
+require './lib/lpxc.rb'
 
 Thread.abort_on_exception = true
 
