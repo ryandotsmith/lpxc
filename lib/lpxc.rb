@@ -24,18 +24,18 @@ class Lpxc
   #:disable_delay_flush => nil:: Force flush only batch_size is reached.
   def initialize(opts={})
     @hash_lock = Mutex.new
-    @hash = opts[:hash] || Hash.new
-    @request_queue = opts[:request_queue] || SizedQueue.new(1)
-    @default_token = opts[:default_token]
-    @structured_data = opts[:structured_data] || "-"
-    @msgid = opts[:msgid] || "-"
-    @procid = opts[:procid] || "lpxc"
-    @hostname = opts[:hostname] || "myhost"
+    @hash              = opts[:hash]              || Hash.new
+    @request_queue     = opts[:request_queue]     || SizedQueue.new(1)
+    @default_token     = opts[:default_token]     || ENV['LOGPLEX_DEFAULT_TOKEN']
+    @structured_data   = opts[:structured_data]   || "-"
+    @msgid             = opts[:msgid]             || "-"
+    @procid            = opts[:procid]            || "lpxc"
+    @hostname          = opts[:hostname]          || "myhost"
     @max_reqs_per_conn = opts[:max_reqs_per_conn] || 1_000
-    @conn_timeout = opts[:conn_timeout] || 2
-    @batch_size = opts[:batch_size] || 300
-    @flush_interval = opts[:flush_interval] || 0.5
-    @logplex_url = URI(opts[:logplex_url] || ENV["LOGPLEX_URL"] ||
+    @conn_timeout      = opts[:conn_timeout]      || 2
+    @batch_size        = opts[:batch_size]        || 300
+    @flush_interval    = opts[:flush_interval]    || 0.5
+    @logplex_url       = URI(opts[:logplex_url]   || ENV["LOGPLEX_URL"] ||
       raise("Must set logplex url."))
 
     #Keep track of the number of requests that the outlet
