@@ -12,10 +12,19 @@ Lpxc is a fast & efficient client for sending log messages to Heroku's logplex. 
 $ gem install lpxc
 ```
 
+Specifying a logplex token.
 ```ruby
+ENV['LOGPLEX_URL'] = 'https://east.logplex.io/logs'
 require 'lpxc'
 lpxc = Lpxc.new
 lpxc.puts("hello world", 't.123')
+```
+Relying on the token set in the `$LOGPLEX_URL`.
+```ruby
+ENV['LOGPLEX_URL'] = 'https://t.123@east.logplex.io/logs'
+require 'lpxc'
+lpxc = Lpxc.new
+lpxc.puts("hello world")
 ```
 
 ## Runing Tests
