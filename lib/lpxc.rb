@@ -50,10 +50,14 @@ class Lpxc
     Thread.new {delay_flush} if opts[:disable_delay_flush].nil?
   end
 
-  #The interface to publish logs into the stream.
-  #This function will set the log message to the current time in UTC.
-  #If the buffer for this token's log messages is full, it will flush the buffer.
-  def puts(msg, tok=@default_token)
+  # The interface to publish logs into the stream.
+  # This function will set the log message to the current time in UTC.
+  # If the buffer for this token's log msgs is full, it will flush the buffer.
+  # You can specify a logplex token for the message, otherwise #puts will fall
+  # back on the default_token specified in the initializer. If default_token
+  # was not specified in the initializer, then the user portion of the
+  # LOGPLEX_URL will be used.
+  def puts(msg, tok=nil)
     @hash_lock.synchronize do
       #Messages are grouped by their token since 1 http request
       #to logplex must only contain log messages belonging to a single token.
@@ -61,7 +65,7 @@ class Lpxc
       #This call will block if the queue is full.
       #However this should never happen since the next command will flush
       #the queue if we add the last item.
-      q.enq({:t => Time.now.utc, :token => tok, :msg => msg})
+      q.enq({:t => Time.now.utc, :token => (tok || default_token), :msg => msg})
       flush if q.size == q.max
     end
   end
@@ -77,6 +81,10 @@ class Lpxc
   end
 
   private
+
+  def default_token
+    @default_token || @logplex_url.user
+  end
 
   #Take a lock to read all of the buffered messages.
   #Once we have read the messages, we make 1 http request for the batch.
@@ -99,7 +107,7 @@ class Lpxc
       #Build a new HTTP request and place it into the queue
       #to be processed by the HTTP connection.
       req = Net::HTTP::Post.new(@logplex_url.path)
-      req.basic_auth("token", tok)
+      req.basic_auth("token", @logplex_url.user)
       req.add_field('Content-Type', 'application/logplex-1')
       req.body = body
       @request_queue.enq(req)
