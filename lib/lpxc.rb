@@ -89,6 +89,7 @@ class Lpxc
     #However this should never happen since the next command will flush
     #the queue if we add the last item.
     q.enq({:t => Time.now.utc, :token => tok, :msg => msg})
+    # Consequently we flush the entire client if any queue is full.
     flush if q.full?
   end
 
