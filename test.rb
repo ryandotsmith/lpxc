@@ -78,16 +78,6 @@ class LpxcTest < LpxcTestBase #:nodoc:
     assert_equal(expected, actual)
   end
 
-  def test_flush_removes_data
-    h = {}
-    c = Lpxc.new(:hash => h, :request_queue => SizedQueue.new(1))
-    c.puts('hello world', 't.123')
-    assert_equal(1, h.keys.length)
-    c.send(:flush)
-    c.wait
-    assert_equal(0, h.keys.length)
-  end
-
   def test_request_queue_with_single_token
     reqs = SizedQueue.new(1)
     c = Lpxc.new(:request_queue => reqs, :batch_size => 2)
