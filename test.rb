@@ -90,20 +90,18 @@ class LpxcTest < LpxcTestBase #:nodoc:
 
   def test_request_queue_with_single_token
     reqs = SizedQueue.new(1)
-    c = Lpxc.new(:request_queue => reqs)
+    c = Lpxc.new(:request_queue => reqs, :batch_size => 2)
     c.puts('hello world', 't.123')
     c.puts('hello world', 't.123')
-    c.send(:flush)
     c.wait
     assert_equal(1, TestServer.results.length)
   end
 
   def test_request_queue_with_many_tokens
     reqs = SizedQueue.new(2)
-    c = Lpxc.new(:request_queue => reqs)
+    c = Lpxc.new(:request_queue => reqs, :batch_size => 2)
     c.puts('hello world', 't.123')
     c.puts('hello world', 't.124')
-    c.send(:flush)
     c.wait
     assert_equal(2, TestServer.results.length)
   end
