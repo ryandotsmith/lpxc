@@ -7,14 +7,15 @@ Thread.abort_on_exception = true
 LOGPLEX_URL = URI('http://localhost:5000/logs')
 ENV['LOGPLEX_URL'] = LOGPLEX_URL.to_s
 
-if RUBY_VERSION[0].to_i >= 2
-  require 'minitest/autorun'
-  LpxcTestBase = Minitest::Test
-else
+case RUBY_VERSION
+when "1.8.7"
   require 'test/unit'
   LpxcTestBase = Test::Unit::TestCase
+when "1.9.3"
+when "2.0.0"
+  require 'minitest/autorun'
+  LpxcTestBase = MiniTest::Unit::TestCase
 end
-
 
 module TestServer #:nodoc:
   def self.results; @results; end
