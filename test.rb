@@ -15,6 +15,8 @@ when "1.9.3"
 when "2.0.0"
   require 'minitest/autorun'
   LpxcTestBase = MiniTest::Unit::TestCase
+else
+  raise("Unsupported ruby version: #{RUBY_VERSION}")
 end
 
 module TestServer #:nodoc:
