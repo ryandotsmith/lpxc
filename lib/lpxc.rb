@@ -79,16 +79,17 @@ class Lpxc
   #This function will set the log message to the current time in UTC.
   #If the buffer for this token's log messages is full, it will flush the buffer.
   def puts(msg, tok=@default_token)
+    q = nil
     @hash_lock.synchronize do
       #Messages are grouped by their token since 1 http request
       #to logplex must only contain log messages belonging to a single token.
       q = @hash[tok] ||= FlushableLockableSizedQueue.new(@batch_size)
-      #This call will block if the queue is full.
-      #However this should never happen since the next command will flush
-      #the queue if we add the last item.
-      q.enq({:t => Time.now.utc, :token => tok, :msg => msg})
-      flush if q.full?
     end
+    #This call will block if the queue is full.
+    #However this should never happen since the next command will flush
+    #the queue if we add the last item.
+    q.enq({:t => Time.now.utc, :token => tok, :msg => msg})
+    flush if q.full?
   end
 
   #Wait until all of the data has been cleared from memory.
@@ -101,37 +102,37 @@ class Lpxc
       @req_in_flight.zero?
   end
 
-  private
-
-  #Take a lock to read all of the buffered messages.
-  #Once we have read the messages, we make 1 http request for the batch.
-  #We pass the request off into the request queue so that the request
-  #can be sent to LOGPLEX_URL.
+  # Empty all log messages into a request queue. Messages will be grouped
+  # by token such that each request contains messages with homogeneus tokens.
+  # A seperate thread will process the requests.
   def flush
-    @hash.each do |tok, queue|
-      #Copy the messages from the queue into the payload array.
-      payloads = queue.flush
-      return if payloads.nil? || payloads.empty?
+    @hash_lock.synchronize do
+      @hash.each do |tok, queue|
+        #Copy the messages from the queue into the payload array.
+        payloads = queue.flush
+        return if payloads.nil? || payloads.empty?
 
-      #Use the payloads array to build a string that will be
-      #used as the http body for the logplex request.
-      body = ""
-      payloads.flatten.each do |payload|
-        body += "#{fmt(payload)}"
+        #Use the payloads array to build a string that will be
+        #used as the http body for the logplex request.
+        body = ""
+        payloads.flatten.each do |payload|
+          body += "#{fmt(payload)}"
+        end
+
+        #Build a new HTTP request and place it into the queue
+        #to be processed by the HTTP connection.
+        req = Net::HTTP::Post.new(@logplex_url.path)
+        req.basic_auth("token", tok)
+        req.add_field('Content-Type', 'application/logplex-1')
+        req.body = body
+        @request_queue.enq(req)
+        @hash.delete(tok)
+        @last_flush = Time.now
       end
-
-      #Build a new HTTP request and place it into the queue
-      #to be processed by the HTTP connection.
-      req = Net::HTTP::Post.new(@logplex_url.path)
-      req.basic_auth("token", tok)
-      req.add_field('Content-Type', 'application/logplex-1')
-      req.body = body
-      @request_queue.enq(req)
-      @hash.delete(tok)
-      @last_flush = Time.now
     end
   end
 
+  private
 
   #This method must be called in order for the messages to be sent to Logplex.
   #This method also spawns a thread that allows the messages to be batched.
@@ -140,9 +141,7 @@ class Lpxc
   def delay_flush
     loop do
       begin
-        if interval_ready?
-          @hash_lock.synchronize {flush}
-        end
+        flush if interval_ready?
         sleep(0.01)
       rescue => e
         $stderr.puts("at=start-error error=#{e.message}") if ENV['DEBUG']
