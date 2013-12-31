@@ -11,8 +11,7 @@ case RUBY_VERSION
 when "1.8.7"
   require 'test/unit'
   LpxcTestBase = Test::Unit::TestCase
-when "1.9.3"
-when "2.0.0"
+when "1.9.3", "2.0.0"
   require 'minitest/autorun'
   LpxcTestBase = MiniTest::Unit::TestCase
 else
