@@ -2,6 +2,13 @@
 
 Lpxc is a fast & efficient client for sending log messages to Heroku's logplex. It uses batching and keep-alive connections to enable high-throughput with little overhead.
 
+## Dependencies
+All dependencies come from the standard library. The following version of Ruby are supported:
+
+* 1.8.7
+* 1.9.3
+* 2.0.0
+
 ## Documentation
 
 [Rdoc](http://rubydoc.info/github/ryandotsmith/lpxc/master/Lpxc)
