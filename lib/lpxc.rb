@@ -83,10 +83,10 @@ class Lpxc
   #We pass the request off into the request queue so that the request
   #can be sent to LOGPLEX_URL.
   def flush
-    @hash.each do |tok, msgs|
+    @hash.each do |tok, queue|
       #Copy the messages from the queue into the payload array.
       payloads = []
-      msgs.size.times {payloads << msgs.deq}
+      queue.size.times {payloads << queue.deq}
       return if payloads.nil? || payloads.empty?
 
       #Use the payloads array to build a string that will be
