@@ -19,8 +19,7 @@ lpxc.puts("hello world", 't.123')
 ```
 
 ## Runing Tests
-
-[![Build Status](https://drone.io/github.com/ryandotsmith/lpxc/status.png)](https://drone.io/github.com/ryandotsmith/lpxc/latest)
+[![Build Status](https://travis-ci.org/ryandotsmith/lpxc.png?branch=master)](https://travis-ci.org/ryandotsmith/lpxc)
 
 ```bash
 $ ruby test.rb
