@@ -17,7 +17,7 @@ end
 
 class FlushableLockableSizedQueue < LockableSizedQueue
   def flush
-    synchronize {self.size.times.map {self.deq}}
+    synchronize {size.times.map {deq}}
   end
 
   def full?
