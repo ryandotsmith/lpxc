@@ -13,19 +13,15 @@ class LockableSizedQueue < SizedQueue
   def synchronize
     @locker.synchronize {yield}
   end
-
-  def full?
-    @locker.synchronize do
-      return size == max
-    end
-  end
 end
 
 class FlushableLockableSizedQueue < LockableSizedQueue
   def flush
-    synchronize do
-      return self.size.times.map {self.deq}
-    end
+    synchronize {self.size.times.map {self.deq}}
+  end
+
+  def full?
+    synchronize {size == max}
   end
 end
 
