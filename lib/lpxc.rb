@@ -107,7 +107,7 @@ class Lpxc
       @hash.each do |tok, queue|
         #Copy the messages from the queue into the payload array.
         payloads = queue.flush
-        return if payloads.nil? || payloads.empty?
+        next if payloads.nil? || payloads.empty?
 
         #Use the payloads array to build a string that will be
         #used as the http body for the logplex request.
