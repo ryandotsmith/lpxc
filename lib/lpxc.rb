@@ -102,29 +102,32 @@ class Lpxc
   # by token such that each request contains messages with homogeneus tokens.
   # A seperate thread will process the requests.
   def flush
+    to_be_processed = nil
     @hash_lock.synchronize do
-      @hash.each do |tok, queue|
-        #Copy the messages from the queue into the payload array.
-        payloads = queue.flush
-        next if payloads.nil? || payloads.empty?
+      to_be_processed = @hash
+      @hash = {}
+    end
+    to_be_processed.each do |tok, queue|
+      #Copy the messages from the queue into the payload array.
+      payloads = queue.flush
+      next if payloads.nil? || payloads.empty?
 
-        #Use the payloads array to build a string that will be
-        #used as the http body for the logplex request.
-        body = ""
-        payloads.flatten.each do |payload|
-          body += "#{fmt(payload)}"
-        end
-
-        #Build a new HTTP request and place it into the queue
-        #to be processed by the HTTP connection.
-        req = Net::HTTP::Post.new(@logplex_url.path)
-        req.basic_auth("token", tok)
-        req.add_field('Content-Type', 'application/logplex-1')
-        req.body = body
-        @request_queue.enq(req)
-        @hash.delete(tok)
-        @last_flush = Time.now
+      #Use the payloads array to build a string that will be
+      #used as the http body for the logplex request.
+      body = ""
+      payloads.flatten.each do |payload|
+        body += "#{fmt(payload)}"
       end
+
+      #Build a new HTTP request and place it into the queue
+      #to be processed by the HTTP connection.
+      req = Net::HTTP::Post.new(@logplex_url.path)
+      req.basic_auth("token", tok)
+      req.add_field('Content-Type', 'application/logplex-1')
+      req.body = body
+      @request_queue.enq(req)
+      @hash.delete(tok)
+      @last_flush = Time.now
     end
   end
 
