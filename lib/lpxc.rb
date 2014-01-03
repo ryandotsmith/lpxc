@@ -4,24 +4,23 @@ require 'uri'
 require 'thread'
 require 'timeout'
 
-class LockableSizedQueue < SizedQueue
+class LogMsgQueue
   def initialize(max)
     @locker = Mutex.new
-    super(max)
+    @max = max
+    @array = []
   end
 
-  def synchronize
-    @locker.synchronize {yield}
+  def enqueue(msg)
+    @locker.synchronize {@array << msg}
   end
-end
 
-class FlushableLockableSizedQueue < LockableSizedQueue
   def flush
-    synchronize {size.times.map {deq}}
+    @locker.synchronize {@array.size.times.map {@array.pop}}
   end
 
   def full?
-    synchronize {size == max}
+    @locker.synchronize {@array.size == @max}
   end
 end
 
@@ -79,12 +78,12 @@ class Lpxc
     @hash_lock.synchronize do
       #Messages are grouped by their token since 1 http request
       #to logplex must only contain log messages belonging to a single token.
-      q = @hash[tok] ||= FlushableLockableSizedQueue.new(@batch_size)
+      q = @hash[tok] ||= LogMsgQueue.new(@batch_size)
     end
     #This call will block if the queue is full.
     #However this should never happen since the next command will flush
     #the queue if we add the last item.
-    q.enq({:t => Time.now.utc, :token => tok, :msg => msg})
+    q.enqueue({:t => Time.now.utc, :token => tok, :msg => msg})
     # Consequently we flush the entire client if any queue is full.
     flush if q.full?
   end
