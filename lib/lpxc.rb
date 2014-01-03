@@ -107,7 +107,13 @@ class Lpxc
       to_be_processed = @hash
       @hash = {}
     end
-    to_be_processed.each do |tok, queue|
+    process_hash(to_be_processed)
+  end
+
+  private
+
+  def process_hash(h)
+    h.each do |tok, queue|
       #Copy the messages from the queue into the payload array.
       payloads = queue.flush
       next if payloads.nil? || payloads.empty?
@@ -130,8 +136,6 @@ class Lpxc
       @last_flush = Time.now
     end
   end
-
-  private
 
   #This method must be called in order for the messages to be sent to Logplex.
   #This method also spawns a thread that allows the messages to be batched.
