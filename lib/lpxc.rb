@@ -16,7 +16,11 @@ class LogMsgQueue
   end
 
   def flush
-    @locker.synchronize {@array.size.times.map {@array.pop}}
+    @locker.synchronize do
+      old = @array
+      @array = []
+      return old
+    end
   end
 
   def full?
