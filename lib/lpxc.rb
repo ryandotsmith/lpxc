@@ -20,7 +20,7 @@ class LogMsgQueue
   end
 
   def full?
-    @locker.synchronize {@array.size == @max}
+    @locker.synchronize {@array.size >= @max}
   end
 end
 
