@@ -95,4 +95,15 @@ class LpxcTest < LpxcTestBase #:nodoc:
     c.wait
     assert_equal(2, TestServer.results.length)
   end
+
+  def test_flushing_the_client
+    reqs = SizedQueue.new(1)
+    # Make the batch size much larger than the input.
+    c = Lpxc.new(:request_queue => reqs, :batch_size => 10)
+    c.puts('hello world', 't.123')
+    c.flush
+    c.wait
+    assert_equal(1, TestServer.results.length)
+  end
+
 end

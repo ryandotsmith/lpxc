@@ -4,6 +4,30 @@ require 'uri'
 require 'thread'
 require 'timeout'
 
+class LogMsgQueue
+  def initialize(max)
+    @locker = Mutex.new
+    @max = max
+    @array = []
+  end
+
+  def enqueue(msg)
+    @locker.synchronize {@array << msg}
+  end
+
+  def flush
+    @locker.synchronize do
+      old = @array
+      @array = []
+      return old
+    end
+  end
+
+  def full?
+    @locker.synchronize {@array.size >= @max}
+  end
+end
+
 class Lpxc
 
   #After parsing opts and initializing defaults, the initializer
@@ -54,16 +78,15 @@ class Lpxc
   #This function will set the log message to the current time in UTC.
   #If the buffer for this token's log messages is full, it will flush the buffer.
   def puts(msg, tok=@default_token)
+    q = nil
     @hash_lock.synchronize do
       #Messages are grouped by their token since 1 http request
       #to logplex must only contain log messages belonging to a single token.
-      q = @hash[tok] ||= SizedQueue.new(@batch_size)
-      #This call will block if the queue is full.
-      #However this should never happen since the next command will flush
-      #the queue if we add the last item.
-      q.enq({:t => Time.now.utc, :token => tok, :msg => msg})
-      flush if q.size == q.max
+      q = @hash[tok] ||= LogMsgQueue.new(@batch_size)
     end
+    q.enqueue({:t => Time.now.utc, :token => tok, :msg => msg})
+    # Flush all of the queues if any queue is full.
+    flush if q.full?
   end
 
   #Wait until all of the data has been cleared from memory.
@@ -76,18 +99,25 @@ class Lpxc
       @req_in_flight.zero?
   end
 
+  # Empty all log messages into a request queue. Messages will be grouped
+  # by token such that each request contains messages with homogeneus tokens.
+  # A seperate thread will process the requests.
+  def flush
+    to_be_processed = nil
+    @hash_lock.synchronize do
+      to_be_processed = @hash
+      @hash = {}
+    end
+    process_hash(to_be_processed)
+  end
+
   private
 
-  #Take a lock to read all of the buffered messages.
-  #Once we have read the messages, we make 1 http request for the batch.
-  #We pass the request off into the request queue so that the request
-  #can be sent to LOGPLEX_URL.
-  def flush
-    @hash.each do |tok, msgs|
+  def process_hash(h)
+    h.each do |tok, queue|
       #Copy the messages from the queue into the payload array.
-      payloads = []
-      msgs.size.times {payloads << msgs.deq}
-      return if payloads.nil? || payloads.empty?
+      payloads = queue.flush
+      next if payloads.nil? || payloads.empty?
 
       #Use the payloads array to build a string that will be
       #used as the http body for the logplex request.
@@ -108,7 +138,6 @@ class Lpxc
     end
   end
 
-
   #This method must be called in order for the messages to be sent to Logplex.
   #This method also spawns a thread that allows the messages to be batched.
   #Messages are flushed from memory every 500ms or when we have 300 messages,
@@ -116,9 +145,7 @@ class Lpxc
   def delay_flush
     loop do
       begin
-        if interval_ready?
-          @hash_lock.synchronize {flush}
-        end
+        flush if interval_ready?
         sleep(0.01)
       rescue => e
         $stderr.puts("at=start-error error=#{e.message}") if ENV['DEBUG']
