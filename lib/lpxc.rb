@@ -133,7 +133,6 @@ class Lpxc
       req.add_field('Content-Type', 'application/logplex-1')
       req.body = body
       @request_queue.enq(req)
-      @hash.delete(tok)
       @last_flush = Time.now
     end
   end
