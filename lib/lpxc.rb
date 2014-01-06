@@ -84,11 +84,8 @@ class Lpxc
       #to logplex must only contain log messages belonging to a single token.
       q = @hash[tok] ||= LogMsgQueue.new(@batch_size)
     end
-    #This call will block if the queue is full.
-    #However this should never happen since the next command will flush
-    #the queue if we add the last item.
     q.enqueue({:t => Time.now.utc, :token => tok, :msg => msg})
-    # Consequently we flush the entire client if any queue is full.
+    # Flush all of the queues if any queue is full.
     flush if q.full?
   end
 
