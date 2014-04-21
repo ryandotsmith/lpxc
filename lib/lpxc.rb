@@ -59,6 +59,7 @@ class Lpxc
     @conn_timeout = opts[:conn_timeout] || 2
     @batch_size = opts[:batch_size] || 300
     @flush_interval = opts[:flush_interval] || 0.5
+    @user_agent = opts[:user_agent] || ENV["LPXC_USER_AGENT"] || "Lpxc (Ruby #{RUBY_VERSION})"
     @logplex_url = URI(opts[:logplex_url] || ENV["LOGPLEX_URL"] ||
       raise("Must set logplex url."))
 
@@ -131,6 +132,7 @@ class Lpxc
       req = Net::HTTP::Post.new(@logplex_url.path)
       req.basic_auth("token", tok)
       req.add_field('Content-Type', 'application/logplex-1')
+      req.add_field('User-Agent', @user_agent) if @user_agent
       req.body = body
       @request_queue.enq(req)
       @last_flush = Time.now
