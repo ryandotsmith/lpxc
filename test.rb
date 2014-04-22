@@ -18,28 +18,31 @@ else
   raise("Unsupported ruby version: #{RUBY_VERSION}")
 end
 
-module TestServer #:nodoc:
-  def self.results; @results; end
-  def self.stop; @server.shutdown; end
-  def self.start
+def Lpxc.clients; @clients end  #:nodoc:
+
+class TestServer #:nodoc:
+  def results; @results; end
+  def stop; @server.shutdown; end
+  def start(port=LOGPLEX_URL.port)
     @results = []
     @server = WEBrick::HTTPServer.new(
       :Logger => WEBrick::Log.new("/dev/null"),
       :AccessLog => [],
-      :Port => LOGPLEX_URL.port)
+      :Port => port)
     @server.mount_proc(LOGPLEX_URL.path) {|req, res| @results << req.body}
     @server_thread = Thread.new {@server.start}
+    self
   end
 end
 
 class LpxcTest < LpxcTestBase #:nodoc:
 
   def setup
-    TestServer.start
+    @test_server = TestServer.new.start
   end
 
   def teardown
-    TestServer.stop
+    @test_server.stop
   end
 
   def test_integration
@@ -51,7 +54,7 @@ class LpxcTest < LpxcTestBase #:nodoc:
     c.puts('hello world', 't.123')
     c.wait
     expected = /66 <190>1 [0-9T:\+\-\.]+ myhost t.123 lpxc - - hello world/
-    assert TestServer.results[0] =~ expected
+    assert @test_server.results[0] =~ expected
   end
 
   def test_integration_batching
@@ -65,8 +68,8 @@ class LpxcTest < LpxcTestBase #:nodoc:
       c.puts('hello world', 't.123')
     end
     c.wait
-    assert_equal(1, TestServer.results.length)
-    assert_equal(batch_size, TestServer.results[0].scan(/hello\sworld/).count)
+    assert_equal(1, @test_server.results.length)
+    assert_equal(batch_size, @test_server.results[0].scan(/hello\sworld/).count)
   end
 
   def test_fmt
@@ -84,7 +87,7 @@ class LpxcTest < LpxcTestBase #:nodoc:
     c.puts('hello world', 't.123')
     c.puts('hello world', 't.123')
     c.wait
-    assert_equal(1, TestServer.results.length)
+    assert_equal(1, @test_server.results.length)
   end
 
   def test_request_queue_with_many_tokens
@@ -93,7 +96,7 @@ class LpxcTest < LpxcTestBase #:nodoc:
     c.puts('hello world', 't.123')
     c.puts('hello world', 't.124')
     c.wait
-    assert_equal(2, TestServer.results.length)
+    assert_equal(2, @test_server.results.length)
   end
 
   def test_flushing_the_client
@@ -103,7 +106,26 @@ class LpxcTest < LpxcTestBase #:nodoc:
     c.puts('hello world', 't.123')
     c.flush
     c.wait
-    assert_equal(1, TestServer.results.length)
+    assert_equal(1, @test_server.results.length)
+  end
+
+  def test_auto_multiplexing
+    ts2 = TestServer.new.start(5001)
+
+    Lpxc.puts("hello first", LOGPLEX_URL)
+    Lpxc.puts("hello second", 'http://token:second@localhost:5001/logs')
+    Lpxc.puts("second again", 'http://token:second@localhost:5001/logs')
+    Lpxc.puts("hello third", 'http://token:third@localhost:5001/logs')
+    Lpxc.clients.each {|_, c| c.flush }; sleep 1
+
+    assert_equal(2, Lpxc.clients.length)
+    assert_equal(1, @test_server.results.length)
+    assert_equal(2, ts2.results.length)
+    assert_match(ts2.results.first, /hello second/)
+    assert_match(ts2.results.first, /second again/)
+    assert_match(ts2.results.last, /hello third/)
+  ensure
+    ts2.stop
   end
 
 end
