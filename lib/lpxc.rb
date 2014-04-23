@@ -60,8 +60,8 @@ class Lpxc
     @batch_size = opts[:batch_size] || 300
     @flush_interval = opts[:flush_interval] || 0.5
     @user_agent = opts[:user_agent] || ENV["LPXC_USER_AGENT"] || "Lpxc (Ruby #{RUBY_VERSION})"
-    @logplex_url = URI(opts[:logplex_url] || ENV["LOGPLEX_URL"] ||
-      raise("Must set logplex url."))
+    @logplex_url = URI((opts[:logplex_url] || ENV["LOGPLEX_URL"] ||
+      raise("Must set logplex url.")).to_s)
 
     #Keep track of the number of requests that the outlet
     #is processing. This value is used by the wait function.
@@ -79,7 +79,7 @@ class Lpxc
   #and use it to send msg using the token from the URL.
   def self.puts(msg, url, opts={})
     @lock = Mutex.new
-    url = url.is_a?(URI) ? url : URI.parse(url)
+    url = url.is_a?(URI) ? url : URI(url)
     server = [url.host, url.port, url.scheme]
     @clients ||= {}
     c = @lock.synchronize { @clients[server] ||= Lpxc.new(:logplex_url => url) }

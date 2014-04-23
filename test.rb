@@ -112,7 +112,7 @@ class LpxcTest < LpxcTestBase #:nodoc:
   def test_auto_multiplexing
     ts2 = TestServer.new.start(5001)
 
-    Lpxc.puts("hello first", LOGPLEX_URL)
+    Lpxc.puts("hello first", LOGPLEX_URL.to_s)
     Lpxc.puts("hello second", 'http://token:second@localhost:5001/logs')
     Lpxc.puts("second again", 'http://token:second@localhost:5001/logs')
     Lpxc.puts("hello third", 'http://token:third@localhost:5001/logs')
