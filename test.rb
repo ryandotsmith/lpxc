@@ -121,9 +121,9 @@ class LpxcTest < LpxcTestBase #:nodoc:
     assert_equal(2, Lpxc.clients.length)
     assert_equal(1, @test_server.results.length)
     assert_equal(2, ts2.results.length)
-    assert_match(ts2.results.first, /hello second/)
-    assert_match(ts2.results.first, /second again/)
-    assert_match(ts2.results.last, /hello third/)
+    assert_match(/hello second/, ts2.results.first)
+    assert_match(/second again/, ts2.results.first)
+    assert_match(/hello third/, ts2.results.last)
   ensure
     ts2.stop
   end
