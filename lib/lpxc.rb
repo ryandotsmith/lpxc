@@ -28,6 +28,25 @@ class LogMsgQueue
   end
 end
 
+#Like SizedQueue, but drops instead of blocking
+class DroppingSizedQueue < SizedQueue
+  #Returns true/false depending on whether the queue is full or not
+  def push(obj)
+    @mutex.synchronize do
+      return false unless @que.length < @max
+
+      @que.push obj
+      begin
+        t = @waiting.shift
+        t.wakeup if t
+      rescue ThreadError
+        retry
+      end
+      return true
+    end
+  end
+end
+
 class Lpxc
 
   #After parsing opts and initializing defaults, the initializer
@@ -72,7 +91,8 @@ class Lpxc
 
     #Start the processing threads.
     Thread.new {outlet}
-    Thread.new {delay_flush} if opts[:disable_delay_flush].nil?
+    Thread.new {delay_flush} unless opts[:disable_delay_flush]
+    at_exit {flush} unless opts[:disable_at_exit_flush]
   end
 
   #Automatically create an Lpxc client object for a given URL if none exists,
