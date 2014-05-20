@@ -92,7 +92,7 @@ class Lpxc
     #Start the processing threads.
     Thread.new {outlet}
     Thread.new {delay_flush} unless opts[:disable_delay_flush]
-    at_exit {flush} unless opts[:disable_at_exit_flush]
+    at_exit {wait} unless opts[:disable_at_exit_flush]
   end
 
   #Automatically create an Lpxc client object for a given URL if none exists,
