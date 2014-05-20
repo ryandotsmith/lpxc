@@ -102,7 +102,8 @@ class Lpxc
     url = url.is_a?(URI) ? url : URI(url)
     server = [url.host, url.port, url.scheme]
     @clients ||= {}
-    c = @lock.synchronize { @clients[server] ||= Lpxc.new(:logplex_url => url) }
+    opts[:logplex_url] = url
+    c = @lock.synchronize { @clients[server] ||= Lpxc.new(opts) }
     c.puts(msg, url.password)
   end
 
@@ -124,11 +125,15 @@ class Lpxc
   #Wait until all of the data has been cleared from memory.
   #This is useful if you don't want your program to exit before
   #we are able to deliver log messages to logplex.
-  def wait
-    sleep(0.1) until
-      @hash.length.zero? &&
-      @request_queue.empty? &&
-      @req_in_flight.zero?
+  def wait(max=10)
+    Timeout.timeout(max) do
+      sleep(0.1) until
+        @hash.length.zero? &&
+        @request_queue.empty? &&
+        @req_in_flight.zero?
+    end
+    true
+  rescue Timeout::Error => _
   end
 
   # Empty all log messages into a request queue. Messages will be grouped
