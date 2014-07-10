@@ -28,9 +28,11 @@ class LogMsgQueue
   end
 end
 
-#Like SizedQueue, but drops instead of blocking
+# Like SizedQueue, but drops instead of blocking. Pass one of these in
+# as :request_queue if you would prefer loss to slowing down in cases
+# of back-pressure.
 class DroppingSizedQueue < SizedQueue
-  #Returns true/false depending on whether the queue is full or not
+  # Returns true/false depending on whether the queue is full or not
   def push(obj)
     @mutex.synchronize do
       return false unless @que.length < @max
