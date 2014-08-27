@@ -92,8 +92,8 @@ class Lpxc
     @last_flush = Time.now + @flush_interval
 
     #Start the processing threads.
-    Thread.new {outlet}
-    Thread.new {delay_flush} unless opts[:disable_delay_flush]
+    @outlet_thread = Thread.new {outlet}
+    @flush_thread = Thread.new {delay_flush} unless opts[:disable_delay_flush]
     at_exit {wait} unless opts[:disable_at_exit_flush]
   end
 
@@ -148,6 +148,17 @@ class Lpxc
       @hash = {}
     end
     process_hash(to_be_processed)
+  end
+
+  def close
+    @outlet_thread.kill
+    @flush_thread.kill
+  end
+
+  def self.close
+    @clients.each do |_, client|
+      client.close
+    end
   end
 
   private
