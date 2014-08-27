@@ -100,13 +100,15 @@ class Lpxc
   #Automatically create an Lpxc client object for a given URL if none exists,
   #and use it to send msg using the token from the URL.
   def self.puts(msg, url, opts={})
-    @lock = Mutex.new
-    url = url.is_a?(URI) ? url : URI(url)
-    server = [url.host, url.port, url.scheme]
+    @lock ||= Mutex.new
     @clients ||= {}
+    url = url.is_a?(URI) ? url : URI(url)
+    token = url.password
+
+    url.userinfo = "" # for hashing purposes, ignore the token
     opts[:logplex_url] = url
-    c = @lock.synchronize { @clients[server] ||= Lpxc.new(opts) }
-    c.puts(msg, url.password)
+    c = @lock.synchronize { @clients[opts] ||= Lpxc.new(opts) }
+    c.puts(msg, token)
   end
 
   #The interface to publish logs into the stream.
