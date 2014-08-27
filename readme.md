@@ -7,7 +7,7 @@ All dependencies come from the standard library. The following version of Ruby a
 
 * 1.9.3
 * 2.0.0
-* 2.1.0
+* 2.1.2
 
 ## Documentation
 
