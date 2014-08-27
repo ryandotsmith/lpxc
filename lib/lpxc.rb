@@ -151,8 +151,10 @@ class Lpxc
   end
 
   def close
-    @outlet_thread.kill
+    flush
     @flush_thread.kill
+    wait
+    @outlet_thread.kill
   end
 
   def self.close
