@@ -105,7 +105,6 @@ class Lpxc
     url = url.is_a?(URI) ? url : URI(url)
     token = url.password
 
-    url.userinfo = "" # for hashing purposes, ignore the token
     opts[:logplex_url] = url
     c = @lock.synchronize { @clients[opts] ||= Lpxc.new(opts) }
     c.puts(msg, token)
