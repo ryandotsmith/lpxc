@@ -1,5 +1,7 @@
 #lpxc
 
+The canonical repository for lpxc is now [the heroku fork](https://github.com/heroku/lpxc).
+
 Lpxc is a fast & efficient client for sending log messages to Heroku's logplex. It uses batching and keep-alive connections to enable high-throughput with little overhead.
 
 ## Dependencies
